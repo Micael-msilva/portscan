@@ -1,69 +1,69 @@
-# Python Port Scanner (TCP & UDP) — Theory-Based Implementation
+# Scanner de Portas em Python (TCP & UDP)
 
-This project is a **Port Scanner** written in Python using **Scapy** and OO.
+Este projeto é um **Scanner de Portas** escrito em Python utilizando **Scapy** e **Programação Orientada a Objetos (OO)**.
 
 ---
 
-## Protocol Background (Theory)
+## Fundamentos dos Protocolos (Teoria)
 
 ### TCP (Transmission Control Protocol)
 
-TCP is a **connection-oriented** protocol that uses a **three-way handshake**:
+TCP é um protocolo **orientado à conexão** que utiliza o **handshake de três vias**:
 
-1. **SYN** → request to start a connection
-2. **SYN-ACK** → server accepts
-3. **ACK** → connection established
+1. **SYN** → solicitação para iniciar uma conexão
+2. **SYN-ACK** → o servidor aceita
+3. **ACK** → conexão estabelecida
 
-TCP has **flags** that indicate connection state:
+O TCP possui **flags** que indicam o estado da conexão:
 
 * `S` → SYN
 * `A` → ACK
 * `R` → RST (Reset)
-* `F` → FIN (Close)
+* `F` → FIN (Encerrar conexão)
 
-Because TCP is stateful, **port scanning relies on how servers respond to invalid or partial handshakes**.
+Como o TCP é *stateful*, o **port scanning se baseia em como os servidores respondem a handshakes inválidos ou incompletos**.
 
 ---
 
 ### UDP (User Datagram Protocol)
 
-UDP is **connectionless**:
+UDP é um protocolo **sem conexão**:
 
-* No handshake
-* No session state
-* No ACKs
+* Não possui handshake
+* Não mantém estado de sessão
+* Não utiliza ACK
 
-UDP scanning relies mostly on **ICMP messages**, not UDP replies.
+O scan UDP depende principalmente de **mensagens ICMP**, e não de respostas UDP.
 
 ---
 
-## Implemented Scan Techniques
+## Técnicas de Scan Implementadas
 
 ### 1️⃣ TCP SYN Scan (Half-Open Scan)
 
-**Function:** `tcp_syn_scan()`
+**Função:** `tcp_syn_scan()`
 
-#### Theory
+#### Teoria
 
-This scan sends only the **first packet of the TCP handshake** (`SYN`) and analyzes the response.
+Esse scan envia apenas o **primeiro pacote do handshake TCP** (`SYN`) e analisa a resposta.
 
-| Response    | Meaning                 |
-| ----------- | ----------------------- |
-| SYN-ACK     | Port is **open**        |
-| RST         | Port is **closed**      |
-| No response | **Filtered** (firewall) |
+| Resposta     | Significado             |
+| ------------ | ----------------------- |
+| SYN-ACK      | Porta **aberta**        |
+| RST          | Porta **fechada**       |
+| Sem resposta | **Filtrada** (firewall) |
 
-The connection is **never fully established**, making it stealthier.
+A conexão **nunca é totalmente estabelecida**, tornando o scan mais discreto.
 
-#### TCP Flow
+#### Fluxo TCP
 
 ```
 Scanner → SYN
-Target  → SYN-ACK  (open)
-Target  → RST      (closed)
+Alvo    → SYN-ACK  (aberta)
+Alvo    → RST      (fechada)
 ```
 
-#### Code Logic
+#### Lógica do Código
 
 ```python
 pkt = IP(dst=ip_target) / TCP(dport=port, flags="S")
@@ -72,122 +72,122 @@ resp = sr1(pkt, timeout=TIMEOUT)
 
 ---
 
-### 2️⃣ TCP ACK Scan (Firewall Detection)
+### 2️⃣ TCP ACK Scan (Detecção de Firewall)
 
-**Function:** `ack_scan()`
+**Função:** `ack_scan()`
 
-#### Theory
+#### Teoria
 
-This scan does **not** determine if a port is open or closed.
+Esse scan **não determina** se a porta está aberta ou fechada.
 
-Instead, it checks **firewall rules** by sending an **out-of-context ACK** packet.
+Ele verifica **regras de firewall** enviando um pacote **ACK fora de contexto**.
 
-| Response    | Meaning                |
-| ----------- | ---------------------- |
-| RST         | Port is **unfiltered** |
-| No response | **Filtered**           |
+| Resposta     | Significado            |
+| ------------ | ---------------------- |
+| RST          | Porta **não filtrada** |
+| Sem resposta | **Filtrada**           |
 
-Why?
-Because a host **must reply with RST** to an invalid ACK **unless a firewall blocks it**.
+Por quê?
+Porque um host **deve responder com RST** a um ACK inválido **a menos que um firewall o bloqueie**.
 
-#### TCP Flow
+#### Fluxo TCP
 
 ```
 Scanner → ACK
-Target  → RST   (no firewall)
-(no reply)      (firewall)
+Alvo    → RST   (sem firewall)
+(sem resposta)  (firewall)
 ```
 
 ---
 
 ### 3️⃣ UDP Scan
 
-**Function:** `udp_scan()`
+**Função:** `udp_scan()`
 
-#### Theory
+#### Teoria
 
-UDP does not acknowledge packets.
-Therefore, **silence often means open**.
+O UDP não confirma pacotes.
+Portanto, **silêncio geralmente indica porta aberta**.
 
-The only reliable signal comes from **ICMP errors**.
+O único sinal confiável vem de **erros ICMP**.
 
-| Response           | Meaning              |
-| ------------------ | -------------------- |
-| UDP reply          | **Open**             |
-| ICMP type 3 code 3 | **Closed**           |
-| No response        | **Open or Filtered** |
+| Resposta             | Significado            |
+| -------------------- | ---------------------- |
+| Resposta UDP         | **Aberta**             |
+| ICMP tipo 3 código 3 | **Fechada**            |
+| Sem resposta         | **Aberta ou Filtrada** |
 
-#### ICMP Explanation
+#### Explicação do ICMP
 
-* `Type 3` → Destination Unreachable
-* `Code 3` → Port Unreachable
+* `Tipo 3` → Destino inalcançável
+* `Código 3` → Porta inalcançável
 
-This means:
+Isso significa:
 
-> “The host exists, but nothing listens on that port.”
+> “O host existe, mas não há nenhum serviço escutando nessa porta.”
 
 ---
 
-### 4️⃣ TCP SYN Scan with Decoys (IDS Evasion)
+### 4️⃣ TCP SYN Scan com Decoys (Evasão de IDS)
 
-**Function:** `tcp_syn_scan_decoy()`
+**Função:** `tcp_syn_scan_decoy()`
 
-#### Theory
+#### Teoria
 
-This technique sends **multiple SYN packets**:
+Essa técnica envia **múltiplos pacotes SYN**:
 
-* Several from **fake source IPs (decoys)**
-* One from the **real scanner IP**
+* Vários com **IPs de origem falsos (decoys)**
+* Um com o **IP real do scanner**
 
-To the target and its logs, **all IPs look identical**.
+Para o alvo e seus logs, **todos os IPs parecem iguais**.
 
-#### TCP Flow
+#### Fluxo TCP
 
 ```
-Decoy IP 1 → SYN
-Decoy IP 2 → SYN
-Decoy IP 3 → SYN
-Real IP    → SYN  ← response analyzed
+IP Decoy 1 → SYN
+IP Decoy 2 → SYN
+IP Decoy 3 → SYN
+IP Real    → SYN  ← resposta analisada
 ```
 
-Only the **real IP waits for the response**.
+Apenas o **IP real** aguarda a resposta.
 
 ---
 
-#### Why it works
+#### Por que funciona
 
-* IDS/IPS logs show multiple attackers
-* Makes attribution harder
-* Same principle used by `nmap -D`
+* Logs de IDS/IPS mostram múltiplos atacantes
+* Dificulta a atribuição da origem real
+* Mesmo princípio usado pelo `nmap -D`
 
-#### Limitations
+#### Limitações
 
-* Requires root
-* Fails if network blocks IP spoofing
-* Modern IDS may detect timing patterns
-
----
-
-## 🧬 Response Interpretation Summary
-
-| Scan Type | Packet Sent | Response | Interpretation  |
-| --------- | ----------- | -------- | --------------- |
-| SYN       | SYN         | SYN-ACK  | Open            |
-| SYN       | SYN         | RST      | Closed          |
-| SYN       | SYN         | None     | Filtered        |
-| ACK       | ACK         | RST      | Unfiltered      |
-| ACK       | ACK         | None     | Filtered        |
-| UDP       | UDP         | UDP      | Open            |
-| UDP       | UDP         | ICMP 3/3 | Closed          |
-| UDP       | UDP         | None     | Open / Filtered |
+* Requer privilégios de root
+* Falha se a rede bloquear spoofing de IP
+* IDS modernos podem detectar padrões de tempo
 
 ---
 
-## 🛠️ Requirements
+## 🧬 Resumo da Interpretação das Respostas
+
+| Tipo de Scan | Pacote Enviado | Resposta | Interpretação     |
+| ------------ | -------------- | -------- | ----------------- |
+| SYN          | SYN            | SYN-ACK  | Aberta            |
+| SYN          | SYN            | RST      | Fechada           |
+| SYN          | SYN            | Nenhuma  | Filtrada          |
+| ACK          | ACK            | RST      | Não filtrada      |
+| ACK          | ACK            | Nenhuma  | Filtrada          |
+| UDP          | UDP            | UDP      | Aberta            |
+| UDP          | UDP            | ICMP 3/3 | Fechada           |
+| UDP          | UDP            | Nenhuma  | Aberta / Filtrada |
+
+---
+
+## 🛠️ Requisitos
 
 * Python 3.x
 * Scapy
-* Root privileges (raw sockets)
+* Privilégios de root (raw sockets)
 
 ```bash
 pip install scapy
@@ -196,7 +196,7 @@ sudo python3 main.py
 
 ---
 
-## 🚀 Example Usage
+## 🚀 Exemplo de Uso
 
 ```python
 ip = "192.168.3.22"
@@ -214,52 +214,3 @@ print(
     )
 )
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Port range and top ports
-dns translator
